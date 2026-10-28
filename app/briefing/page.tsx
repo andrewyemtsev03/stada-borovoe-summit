@@ -1,39 +1,14 @@
-import Header from '../header';
-import { Download, ExternalLink, ShieldCheck } from 'lucide-react';
-
-const presentationPdf = '/presentations/instruktazh-tekhnika-bezopasnosti.pdf';
-const presentationPptx = '/presentations/instruktazh-tekhnika-bezopasnosti.pptx';
-
-export default function Briefing() {
-  return <>
-    <Header active="briefing"/>
-    <main id="main-content" className="main briefing-main">
-      <section className="briefing-heading">
-        <div>
-          <p className="eyebrow"><ShieldCheck size={17}/>LET’S MAX · STADA 2026</p>
-          <h1>Инструктаж</h1>
-          <p>Организационная информация и техника безопасности</p>
-        </div>
-        <div className="briefing-actions">
-          <a className="briefing-secondary-action" href={presentationPdf} target="_blank" rel="noreferrer">
-            <ExternalLink size={18}/>Открыть на весь экран
-          </a>
-          <a className="briefing-primary-action" href={presentationPptx} download>
-            <Download size={18}/>Скачать презентацию
-          </a>
-        </div>
-      </section>
-
-      <section className="presentation-viewer" aria-label="Презентация инструктажа">
-        <object data={presentationPdf} type="application/pdf" title="Организационная информация и целевой инструктаж">
-          <div className="presentation-fallback">
-            <ShieldCheck size={38}/>
-            <h2>Просмотр PDF недоступен в этом браузере</h2>
-            <p>Откройте презентацию в новой вкладке или скачайте оригинал PowerPoint.</p>
-            <a href={presentationPdf} target="_blank" rel="noreferrer">Открыть PDF</a>
-          </div>
-        </object>
-      </section>
-    </main>
-  </>;
+import Link from 'next/link';
+import {ArrowRight,ArrowUpRight,Download,ShieldCheck} from 'lucide-react';
+import PublicShell from '../public-shell';
+import PublicHeading from '../public-heading';
+import BriefingChecklist from './checklist';
+const rulebook='/presentations/neo-tokyo-participant-guide-2026.pdf';
+const steps=[{number:'01',title:'Найдите свою команду',text:'Откройте карточку скаудерии, проверьте состав и запомните номер команды.',href:'/teams',link:'К командам'},{number:'02',title:'Проверьте программу',text:'Выберите день и свой маршрут. Сверьте время, место и соперников перед следующим раундом.',href:'/agenda',link:'К программе'},{number:'03',title:'Слушайте ведущего',text:'Уточните задание и критерии оценки. Начинайте и завершайте этап по сигналу организатора.',href:'/leaderboard',link:'К результатам'}];
+export default function Briefing(){
+ return <PublicShell active="rules"><main id="main-content" className="nt-page nt-rules-page">
+  <PublicHeading index="04" kicker="PARTICIPANT GUIDE / RACE PROTOCOL" title="READY FOR" accent="THE START" japanese="参加者ガイド" description="Ваша команда, программа и правила участия. Всё, что нужно знать перед первым раундом."/>
+  <div className="nt-rules-layout"><section className="nt-rules-documents"><span className="nt-document-index">01 / THE PARTICIPANT GUIDE</span><ShieldCheck size={34}/><h2>Общий ритм.<br/>Честная игра.</h2><p>Всё о командном соревновании: девять игровых этапов, порядок участия, live-результаты и принципы fair play. Прочитайте инструктаж перед первым раундом.</p><div className="nt-document-actions"><a className="nt-button nt-button-red" href={rulebook} target="_blank" rel="noreferrer">ОТКРЫТЬ РЕГЛАМЕНТ<ArrowUpRight size={17}/></a><a className="nt-small-button" href={rulebook} download="STADA-Neo-Tokyo-Instruction-2026.pdf"><Download size={16}/>Скачать регламент</a></div><small>PDF / 4 СТРАНИЦЫ / NTGP 2026</small></section><section className="nt-rules-clearance" aria-label="Готовность участника"><span className="nt-document-index">02 / YOUR STARTING CHECKLIST</span><BriefingChecklist/></section></div>
+  <section className="nt-participant-guide" aria-labelledby="guide-title"><div className="nt-guide-heading"><span>THE STARTING PROCEDURE</span><h2 id="guide-title">Три шага до старта.</h2><p>Командная игра начинается с простых вещей.</p></div><ol className="nt-guide-steps">{steps.map(step=><li key={step.number}><span>{step.number}</span><h3>{step.title}</h3><p>{step.text}</p><Link href={step.href}>{step.link}<ArrowRight size={15}/></Link></li>)}</ol><div className="nt-fairplay-note"><strong>FAIR PLAY / フェアプレー</strong><p>Уважайте соперников, соблюдайте условия задания и сохраняйте свободными проходы. С вопросами по результатам, маршруту или безопасности обращайтесь к организатору этапа.</p></div></section>
+ </main></PublicShell>;
 }

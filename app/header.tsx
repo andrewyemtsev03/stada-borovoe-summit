@@ -1,20 +1,21 @@
-import {LockKeyhole, Trophy, CalendarDays, Users, ShieldCheck} from 'lucide-react';
+import { ArrowUpRight, LockKeyhole, MonitorPlay } from 'lucide-react';
 import Link from 'next/link';
+import BrandEmblem from './brand-emblem';
 export default function Header({active='standings'}:{active?:string}) {
   return <>
     <a className="skip-link" href="#main-content">Перейти к содержимому</a>
-    <header className="site-header">
-      <Link href="/" className="brand" aria-label="LET’S MAX STADA 2026 — главная">
-        <span className="brand-logo"><img src="/images/letsmax-stada.svg" width="139" height="87" alt="LET’S MAX STADA 2026"/></span>
-        <span className="brand-caption">Цикловая конференция<small>Боровое · Казахстан</small></span>
-      </Link>
+    <header className="site-header race-header">
+      <Link href="/" className="brand" aria-label="STADA Neo Tokyo Grand Prix 2026 — главная"><BrandEmblem/></Link>
       <nav aria-label="Главное меню">
-        <Link href="/" aria-current={active==='standings'?'page':undefined}><Trophy size={18}/>Рейтинг</Link>
-        <Link href="/teams" aria-current={active==='teams'?'page':undefined}><Users size={18}/>Участники</Link>
-        <Link href="/agenda" aria-current={active==='agenda'?'page':undefined}><CalendarDays size={18}/>Программа</Link>
-        <Link href="/briefing" aria-current={active==='briefing'?'page':undefined}><ShieldCheck size={18}/>Инструктаж</Link>
+        <Link href="/" aria-current={active==='standings'?'page':undefined}>Главная<span>01</span></Link>
+        <Link href="/teams" aria-current={active==='teams'?'page':undefined}>Скаудерии<span>02</span></Link>
+        <Link href="/agenda" aria-current={active==='agenda'?'page':undefined}>Программа<span>03</span></Link>
+        <Link href="/briefing" aria-current={active==='briefing'?'page':undefined}>Регламент<span>04</span></Link>
       </nav>
-      <Link className="organizer" href="/admin" aria-current={active === 'admin' ? 'page' : undefined} aria-label="Кабинет организатора"><LockKeyhole size={17}/><span>Организатор</span></Link>
+      <div className="header-utilities">
+        <Link className="header-tv" aria-label="Live tv — открыть трансляцию в новой вкладке" href="/tv" target="_blank" rel="noreferrer"><MonitorPlay size={15}/><span>Live tv</span><ArrowUpRight size={13}/></Link>
+        <Link className="organizer" href="/admin" aria-current={active === 'admin' ? 'page' : undefined} aria-label="Race Control"><LockKeyhole size={15}/><span>Race Control</span></Link>
+      </div>
     </header>
   </>;
 }

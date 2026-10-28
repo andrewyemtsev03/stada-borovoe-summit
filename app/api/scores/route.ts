@@ -1,24 +1,38 @@
-import { SITE_BACKEND } from '@/lib/site-backend';
 import { cookies } from 'next/headers';
-import { ORGANIZER_COOKIE, isOrganizerPassword, isSameOrigin } from '@/lib/organizer-session';
+import {
+  ORGANIZER_COOKIE,
+  isOrganizerPassword,
+  isSameOrigin,
+  roleForPassword,
+} from '@/lib/organizer-session';
+import {
+  getAdminScoreboard,
+  getPublicScoreboard,
+  setCell,
+  setManyCells,
+} from '@/lib/race-store';
+
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store' };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const admin = url.searchParams.get('admin') === '1';
   try {
-    const response = await fetch(SITE_BACKEND + '/api/scores', {
-      cache: 'no-store', signal: AbortSignal.timeout(10000), redirect: 'error',
-    });
-    if (!response.ok) throw new Error('Scores returned ' + response.status);
-    const data = await response.json();
-    if (!data || typeof data !== 'object' || !('teams' in data) || !Array.isArray(data.teams) || !('games' in data) || !Array.isArray(data.games)) throw new Error('Invalid scores response');
-    return Response.json({ games: data.games, teams: data.teams }, { headers });
+    if (admin) {
+      const cookieStore = await cookies();
+      const password = cookieStore.get(ORGANIZER_COOKIE)?.value;
+      if (!isOrganizerPassword(password)) {
+        return Response.json({ error: 'Сессия истекла.' }, { status: 401, headers });
+      }
+      const state = await getAdminScoreboard();
+      return Response.json(state, { headers });
+    }
+    const board = await getPublicScoreboard();
+    return Response.json(board, { headers });
   } catch (error) {
     console.error('Load scores failed', error);
-    return Response.json(
-      { error: 'Результаты временно недоступны. Попробуйте ещё раз.' },
-      { status: 503, headers },
-    );
+    return Response.json({ error: 'Результаты временно недоступны.' }, { status: 503, headers });
   }
 }
 
@@ -27,6 +41,7 @@ export async function PATCH(request: Request) {
   const cookieStore = await cookies();
   const password = cookieStore.get(ORGANIZER_COOKIE)?.value;
   if (!isOrganizerPassword(password)) return Response.json({ error: 'Сессия истекла. Войдите снова.' }, { status: 401, headers });
+  const who = roleForPassword(password) === 'judge' ? 'Судья сектора' : 'Главный директор';
 
   let body: unknown;
   try { body = await request.json(); } catch {
@@ -34,17 +49,29 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const response = await fetch(SITE_BACKEND + '/api/scores', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'X-Organizer-Password': password },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(10000),
-      redirect: 'error',
+    const payload = body as {
+      teamId?: number; gameId?: number; score?: number; previous?: number; reason?: string;
+      changes?: { teamId: number; gameId: number; score: number }[];
+    };
+
+    if (Array.isArray(payload.changes)) {
+      const state = await setManyCells({ changes: payload.changes, who });
+      return Response.json(state, { headers });
+    }
+
+    if (typeof payload.teamId !== 'number' || typeof payload.gameId !== 'number' || typeof payload.score !== 'number') {
+      return Response.json({ error: 'Укажите teamId, gameId и score.' }, { status: 400, headers });
+    }
+    const state = await setCell({
+      teamId: payload.teamId,
+      gameId: payload.gameId,
+      score: payload.score,
+      who,
+      reason: payload.reason,
     });
-    return Response.json(await response.json(), { status: response.status, headers });
+    return Response.json(state, { headers });
   } catch (error) {
     console.error('Save score failed', error);
-    return Response.json({ error: 'Не удалось сохранить результат. Попробуйте ещё раз.' }, { status: 503, headers });
+    return Response.json({ error: error instanceof Error ? error.message : 'Не удалось сохранить.' }, { status: 400, headers });
   }
 }

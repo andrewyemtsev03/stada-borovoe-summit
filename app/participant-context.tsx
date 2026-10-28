@@ -6,9 +6,6 @@ import { participants } from './teams';
 type Participant = (typeof participants)[number];
 const cookieName = 'stada_participant';
 const skippedCookieName = 'stada_participant_skipped';
-function hasSkippedParticipant() {
-  return document.cookie.split('; ').some((cookie) => cookie.startsWith(`${skippedCookieName}=`));
-}
 function expireCookie(name: string) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : '';
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${secure}`;
@@ -38,7 +35,6 @@ export function ParticipantProvider({ children }: { children: React.ReactNode })
     const timer = window.setTimeout(() => {
       const saved = readSavedParticipant();
       setParticipant(saved);
-      setOpen(!saved && !hasSkippedParticipant());
       setReady(true);
     }, 0);
     const restore = () => setParticipant(readSavedParticipant());

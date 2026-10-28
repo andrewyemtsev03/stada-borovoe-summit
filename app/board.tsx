@@ -1,13 +1,14 @@
 'use client';
-
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Compass, Flag, MapPin, Mountain, RefreshCw, Search, Trophy } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import Header from './header';
-import ScoreMountain from './score-mountain';
-import { useParticipant } from './participant-context';
-import { initialTeams, Team } from './teams';
-import { games as initialGames, Game } from './games';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {ArrowUpRight,ChevronDown,Flame,RefreshCw,Search,Trophy} from 'lucide-react';
+import PublicShell from './public-shell';
+import PublicHeading from './public-heading';
+import H2HDuel from './h2h-duel';
+import {useParticipant} from './participant-context';
+import {initialTeams,Team} from './teams';
+import {games as initialGames,Game} from './games';
+import {computeAchievements} from './achievements';
+const BOOST_USED_KEY = 'stada-neo-tokyo-fan-boost-used-v1';
 
 export default function Board() {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
@@ -18,6 +19,9 @@ export default function Board() {
   const selectedParticipant = participant?.name ?? '';
   const [games, setGames] = useState<Game[]>(initialGames);
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
+  const [boosts, setBoosts] = useState<Record<string, number>>({});
+  const [boostUsed, setBoostUsed] = useState(false);
+  const [boostBusy, setBoostBusy] = useState(false);
   const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -30,9 +34,9 @@ export default function Board() {
       const scores = new Map(data.teams.map((team) => [team.id, team]));
       setTeams(initialTeams.map((team) => {
         const live = scores.get(team.id);
-        return { ...team, score: live?.score ?? 0, updated_at: live?.updated_at ?? null, game_scores: live?.game_scores ?? [] };
+        return { ...team, name: team.name, score: live?.score ?? 0, updated_at: live?.updated_at ?? null, game_scores: live?.game_scores ?? [] };
       }));
-      setGames(data.games);
+      setGames(initialGames);
       setLoaded(true);
       setError(false);
     } catch {
@@ -42,13 +46,28 @@ export default function Board() {
     }
   }, []);
 
+  const refreshBoosts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/boosts', { cache: 'no-store' });
+      if (!response.ok) return;
+      const data = await response.json() as { boosts?: Record<string, number> };
+      setBoosts(data.boosts ?? {});
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
-    const firstLoad = window.setTimeout(refresh, 0);
-    const tick = () => { if (document.visibilityState === 'visible') refresh(); };
+    try { setBoostUsed(localStorage.getItem(BOOST_USED_KEY) === '1'); } catch { /* ignore */ }
+    const firstLoad = window.setTimeout(() => { void refresh(); void refreshBoosts(); }, 0);
+    const tick = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+        void refreshBoosts();
+      }
+    };
     const timer = setInterval(tick, 10000);
     document.addEventListener('visibilitychange', tick);
     return () => { clearTimeout(firstLoad); clearInterval(timer); document.removeEventListener('visibilitychange', tick); };
-  }, [refresh]);
+  }, [refresh, refreshBoosts]);
 
   useEffect(() => {
     if (!selectedTeamId) return;
@@ -56,57 +75,71 @@ export default function Board() {
     return () => clearTimeout(timer);
   }, [selectedTeamId]);
 
-  const sorted = [...teams].sort((a, b) => b.score - a.score || a.id - b.id);
-  const started = teams.some((team) => team.score !== 0);
-  const max = sorted[0]?.score || 0;
-  const leaders = teams.filter((team) => team.score === max);
+  const visibleScore = (score: number) => (score < 0 ? null : score);
+  const sorted = [...teams].sort((a, b) => {
+    if (a.score < 0 && b.score < 0) return a.id - b.id;
+    if (a.score < 0) return 1;
+    if (b.score < 0) return -1;
+    return b.score - a.score || a.id - b.id;
+  });
+  const started = teams.some((team) => team.score > 0);
+  const max = Math.max(0, ...teams.map((team) => (team.score < 0 ? 0 : team.score)));
+  const leaders = teams.filter((team) => team.score === max && team.score > 0);
+  const achievements = useMemo(() => computeAchievements(teams, games), [teams, games]);
 
-  return <>
-    <Header/>
-    <main id="main-content" className="main leaderboard-main">
-      <section className="expedition-cover" aria-labelledby="expedition-title">
-        <img className="cover-photo" src="/images/expedition.jpg" alt="Путешественник перед горным хребтом"/>
-        <div className="cover-shade"/>
-        <div className="cover-content">
-          <p className="eyebrow"><span className="edition-line"/> LET’S MAX · STADA 2026</p>
-          <h1 id="expedition-title">ВЕРШИНА <span>ЗОВЁТ.</span></h1>
-          <p className="cover-caption">14 команд на пути к общей вершине</p>
-        </div>
-        <div className="cover-location"><MapPin size={16}/><span>БОРОВОЕ<small>КАЗАХСТАН</small></span></div>
-        <div className="cover-coordinate" aria-hidden="true"><Compass size={44}/></div>
-        <section className="stats" aria-label="Итоги соревнования">
-          <div className="team-stat"><span className="stat-symbol"><Flag size={19}/></span><div><span className="stat-label">НА СТАРТЕ</span><strong>14 <small>команд</small></strong></div></div>
-          <div><span className="stat-symbol"><Mountain size={22}/></span><div><span className="stat-label">ЛУЧШИЙ РЕЗУЛЬТАТ</span><strong>{!loaded ? '—' : max}<small> баллов</small></strong></div></div>
-          <div className="leader-stat"><span className="stat-symbol"><Trophy size={21}/></span><div><span className="stat-label">{started ? 'ЛИДЕР ЭКСПЕДИЦИИ' : 'ЭКСПЕДИЦИЯ НАЧИНАЕТСЯ'}</span><strong>{!loaded ? (error ? 'Нет связи' : 'Загружаем…') : started ? (leaders.length === 1 ? leaders[0].name : `Лидеров: ${leaders.length}`) : 'Всё ещё впереди'}</strong></div></div>
-        </section>
-      </section>
-      <section className="board">
-        <div className="board-heading">
-          <div className="board-title"><span className="section-index"><Trophy size={22}/></span><div><h2>Рейтинг команд</h2><p>Нажмите на команду, чтобы увидеть баллы по играм</p></div></div>
-          <div className="board-heading-actions">
-            <button className="find-me-button" type="button" onClick={openFinder}><Search size={15}/>{selectedParticipant ? 'Сменить участника' : 'Найти себя'}</button>
-          </div>
-        </div>
-        {error && <div className="connection-notice" role="status"><span>{loaded ? 'Показываем последние загруженные баллы. Связь восстанавливается.' : 'Не удалось загрузить баллы. Проверьте соединение.'}</span><button type="button" onClick={refresh}><RefreshCw size={14}/>Повторить</button></div>}
-        <Table>
-          <caption className="sr-only">Рейтинг 14 команд — места и количество баллов</caption>
-          <TableHeader><TableRow><TableHead className="rank">МЕСТО</TableHead><TableHead>КОМАНДА</TableHead><TableHead className="progress-head">ПУТЬ К ВЕРШИНЕ</TableHead><TableHead className="points">БАЛЛЫ</TableHead></TableRow></TableHeader>
-          <TableBody>{sorted.map((team) => {
-            const rank = started ? sorted.findIndex((entry) => entry.score === team.score) + 1 : null;
-            const selected = team.id === selectedTeamId;
-            const expanded = expandedTeamId === team.id;
-            return <Fragment key={team.id}><TableRow id={`team-${team.id}`} className={`${rank === 1 ? 'leading-row ' : ''}${selected ? 'own-team-row' : ''}`}>
-              <TableCell className="rank"><span className={rank === 1 ? 'rank-number first' : 'rank-number'}>{rank === null ? '—' : String(rank).padStart(2, '0')}</span></TableCell>
-              <TableCell><button type="button" className="team team-expand" aria-expanded={expanded} aria-controls={`team-games-${team.id}`} onClick={() => setExpandedTeamId(expanded ? null : team.id)}><span className={`team-icon tone-${team.id % 4}`}><Mountain size={22}/></span><span className="team-info"><strong>{team.name}</strong><span>КОМАНДА {String(team.id).padStart(2, '0')}</span></span><span className="team-statuses">{rank === 1 && <span className="leader-badge"><Trophy size={13}/>Лидер</span>}{selected && <span className="own-team-badge">Ваша команда</span>}</span><ChevronDown className={`team-chevron ${expanded ? 'is-open' : ''}`} size={18}/></button></TableCell>
-              <TableCell className="progress-cell"><ScoreMountain score={team.score} max={max} loaded={loaded}/></TableCell>
-              <TableCell className="points"><strong>{!loaded ? '—' : team.score}</strong><div className="mobile-mountain"><ScoreMountain score={team.score} max={max} loaded={loaded}/></div></TableCell>
-            </TableRow>{expanded && <TableRow id={`team-games-${team.id}`} className={`team-details-row ${selected ? 'own-team-details' : ''}`}><TableCell colSpan={4}><div className="game-breakdown"><div className="game-breakdown-heading"><strong>Баллы по играм</strong><span>Итого: {loaded ? team.score : '—'}</span></div><div className="game-score-grid">{games.map((game) => <div className="game-score-item" key={game.id}><span><small>{game.stage}</small>{game.name}</span><strong>{loaded ? (team.game_scores.find((entry) => entry.game_id === game.id)?.score ?? 0) : '—'}</strong></div>)}</div></div></TableCell></TableRow>}</Fragment>;
-          })}</TableBody>
-        </Table>
-        <div className="board-footer"><span>Высота горы — баллы относительно лидера. При равенстве баллов команды делят место.</span></div>
-      </section>
+  async function boostTeam(teamId: number) {
+    if (boostUsed || boostBusy) return;
+    setBoostBusy(true);
+    try {
+      const response = await fetch('/api/boosts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId }),
+      });
+      const data = await response.json() as { boosts?: Record<string, number>; error?: string };
+      if (!response.ok) throw new Error(data.error || 'fail');
+      setBoosts(data.boosts ?? {});
+      localStorage.setItem(BOOST_USED_KEY, '1');
+      setBoostUsed(true);
+    } catch {
+      /* keep prior state */
+    } finally {
+      setBoostBusy(false);
+    }
+  }
+
+  return <PublicShell active="leaderboard">
+    <main id="main-content" className="nt-page nt-classification">
+      <PublicHeading index="01" kicker="LIVE RACE CLASSIFICATION" title="THE LIVE" accent="LEADERBOARD" japanese="ライブランキング" description="Четырнадцать скаудерий. Девять секторов. Результаты обновляются в реальном времени."/>
+      <div className="nt-ranking-status"><span className={error?'nt-feed is-error':'nt-feed'}><i/>{error?'CONNECTION LOST':loaded?'LIVE TIMING':'CONNECTING'}<small>10 SEC SYNC</small></span><span>{started?leaders.length===1?`LEADING / ${leaders[0].name}`:`SHARED LEAD / ${leaders.length}`:'FORMATION LAP'}</span></div>
+      <section className="nt-podium" aria-label="Лидеры гонки">{sorted.filter(team=>team.score>=0).slice(0,3).map((team,index)=><article className={`nt-podium-card nt-podium-${index+1}`} key={team.id}>
+        <div className="nt-podium-top"><span>P{!loaded||!started?'—':sorted.findIndex(entry=>entry.score===team.score)+1}</span><small>{index===0?'POLE POSITION':'FRONT RUNNER'}</small>{index===0&&<Trophy size={19}/>}</div>
+        <h2>{team.name}</h2><div className="nt-podium-score"><strong>{loaded?team.score:'—'}</strong><span>POINTS</span><small>SCUDERIA {String(team.id).padStart(2,'0')}</small></div>
+      </article>)}</section>
+      <div className="nt-ranking-toolbar"><div><h2>Race classification <span>/ 順位</span></h2><p>Нажмите на команду, чтобы открыть результаты по секторам.</p></div><div className="nt-ranking-actions"><H2HDuel teams={sorted} games={games}/><button type="button" className="nt-small-button" onClick={openFinder}><Search size={15}/>{selectedParticipant?'Сменить участника':'Найти себя'}</button></div></div>
+      {error&&<div className="nt-connection" role="status"><span>{loaded?'Показываем последние загруженные баллы. Связь восстанавливается.':'Не удалось загрузить баллы. Проверьте соединение.'}</span><button type="button" onClick={refresh}><RefreshCw size={14}/>Повторить</button></div>}
+      <div className="nt-ranking-columns" aria-hidden="true"><span>POS</span><span>SCUDERIA</span><span>PACE / LEADER</span><span>POINTS</span><span/></div>
+      <ol className="nt-ranking-list" aria-label="Рейтинг 14 команд">{sorted.map(team=>{
+        const frozen=team.score<0;
+        const rank=started&&!frozen?sorted.findIndex(entry=>entry.score===team.score)+1:null;
+        const selected=team.id===selectedTeamId;
+        const expanded=expandedTeamId===team.id;
+        const badges=frozen?[]:(achievements.get(team.id)??[]);
+        const boostCount=boosts[String(team.id)]??0;
+        const displayScore=visibleScore(team.score);
+        const progress=loaded&&max>0?Math.min(100,Math.max(0,displayScore??0)/max*100):0;
+        return <li id={`team-${team.id}`} className={`nt-ranking-entry ${rank===1?'is-leading ':''}${selected?'is-own ':''}${frozen?'is-frozen':''}`} key={team.id}>
+          <button type="button" className="nt-ranking-row" aria-expanded={expanded} aria-controls={`team-games-${team.id}`} onClick={()=>setExpandedTeamId(expanded?null:team.id)}>
+            <span className="nt-rank">{frozen?'??':rank===null?'—':String(rank).padStart(2,'0')}</span>
+            <span className="nt-ranking-team"><small>SCUDERIA {String(team.id).padStart(2,'0')}{selected&&<b>YOUR TEAM</b>}</small><strong>{team.name}</strong>{badges.length>0&&<span className="nt-achievements">{badges.map(badge=><span key={badge.id} title={badge.title}>{badge.label}</span>)}</span>}</span>
+            <span className="nt-ranking-pace"><span><i style={{width:`${progress}%`}}/></span><small>{loaded&&!frozen?`${Math.round(progress)}%`:'—'}</small></span>
+            <span className="nt-ranking-points">{!loaded?'—':frozen?'???':team.score}</span>
+            <ChevronDown size={17} className={expanded?'is-open':''}/>
+          </button>
+          {expanded&&<div id={`team-games-${team.id}`} className="nt-ranking-detail"><div className="nt-detail-heading"><span>SECTOR ANALYSIS</span><strong>Итого: {loaded?(frozen?'скрыто (Safety Car)':team.score):'—'}</strong></div><div className="nt-sector-results">{games.map(game=><div key={game.id}><small>{game.stage}</small><span>{game.name}</span><strong>{loaded?(frozen?'???':(team.game_scores.find(entry=>entry.game_id===game.id)?.score??0)):'—'}</strong></div>)}</div><div className="nt-boost-row"><button type="button" className="nt-small-button nt-boost-button" disabled={boostUsed||boostBusy} onClick={()=>void boostTeam(team.id)}><Flame size={16}/>{boostUsed?'Буст уже использован':'Nitro Boost'}</button><span>FAN BOOST / {boostCount}</span></div></div>}
+        </li>;
+      })}</ol>
+      <div className="nt-ranking-legend"><span>При равенстве баллов команды делят место. Темп — баллы относительно лидера.</span><a href="/tv" target="_blank" rel="noreferrer">Live tv<ArrowUpRight size={14}/></a></div>
     </main>
-    <footer><span className="footer-brand">LET’S MAX STADA 2026 <span>/</span> ВЕРШИНА ЗОВЁТ</span><span>Боровое, Казахстан</span></footer>
-  </>;
+  </PublicShell>;
 }
-

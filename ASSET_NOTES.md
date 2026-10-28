@@ -1,0 +1,8 @@
+# Asset provenance
+
+Circuit: public/neo-tokyo-circuit.png and public/neo-tokyo-circuit.webp.
+Method: built-in imagegen edit using the user-supplied website reference, followed by lossless-copy preservation of the PNG and optimized WebP export.
+
+Prompt: Edit the attached website reference into a standalone reusable hero illustration asset. Strict fidelity to the supplied image: retain the same white architectural 3D miniature Japanese racing circuit, the vertical winding serpentine red neon road and nine turns, elevated isometric camera, white terrain and architecture, tiny red cherry blossom trees, detailed white guardrails, high-key white studio light, white Tokyo miniature city and mountain at bottom right. Remove all website UI, header, logos, navigation, title, Japanese headline, description, buttons, stats, footer, coordinates, big Japanese characters and technical text. Restore obscured areas. Remove sector labels and pins because these will be HTML elements. Place the complete circuit on the right68% of a wide16:9 pure-white canvas with clean white negative space on the left32%. Keep top-right and bottom-center orientation. Crisp luxurious 3D architecture, glowing red roadway with selective reflected light, white fading edges. No dark environment, foreground car, frame, typography or UI.
+
+Intro: public/intro.mp4 is the supplied MP4, copied unchanged. public/intro-first-frame.webp is the actual blank opening frame extracted at0seconds with the browser video decoder. The earlier mid-video poster is no longer referenced by the frontend. No intro footage was regenerated.
